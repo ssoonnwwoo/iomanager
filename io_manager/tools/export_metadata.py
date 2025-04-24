@@ -65,7 +65,6 @@ def export_metadata(date_path):
             # meta data json 파싱
             meta = json.loads(result.stdout)[0]
             meta["thumbnail_path"] = thumb_path
-            meta["thumbnail"] = thumb_path
             meta_list.append(meta)
 
     if not meta_list:
@@ -77,7 +76,7 @@ def export_metadata(date_path):
     ws = wb.active
     ws.title = "Metadata"
 
-    default_fields = ["type", "version", "shot_name", "seq_name", "roll", "thumbnail_path", "thumbnail"]
+    default_fields = ["thumbnail", "thumbnail_path", "type", "version", "shot_name", "seq_name", "roll"]
     all_keys_set = set()
     for m in meta_list:
         for key in m.keys():
@@ -93,11 +92,13 @@ def export_metadata(date_path):
     for row_idx, meta in enumerate(meta_list, start=2):  # 2부터 시작 (1행은 헤더)
         for col_idx, field in enumerate(all_fields, start=1): # 1부터 시작
             value = meta.get(field, "")
+            # list인 meta data -> str 처리
             if isinstance(value, list):
                 value = ", ".join(str(v) for v in value)
+            
             ws.cell(row=row_idx, column=col_idx, value=value)
 
-        thumb_path = meta.get("thumbnail")
+        thumb_path = meta.get("thumbnail_path")
         if thumb_path and os.path.exists(thumb_path):
             col_letter = get_column_letter(all_fields.index("thumbnail") + 1)
             cell_ref = f"{col_letter}{row_idx}"

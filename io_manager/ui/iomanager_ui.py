@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QMainWindow, QCheckBox, QVBoxLayout
 from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QGroupBox
 from PySide6.QtWidgets import QPushButton, QHBoxLayout, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QComboBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
@@ -14,10 +15,16 @@ class IOManagerMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("IO Manager Prototype")
-
+        show_dir = os.path.join(os.path.expanduser("~"), "show")
+        project_list = os.listdir(show_dir)
+        project_list.insert(0, "Select your project first") 
         # Widgets
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        project_label = QLabel("Select project: ")
+        project_cb = QComboBox()
+        project_cb.setCurrentIndex(0)
+        project_cb.addItems(project_list)
         file_path_label = QLabel("File path:")
         self.file_path_le = QLineEdit()
         self.file_path_le.setPlaceholderText("Input your shot path")
@@ -37,7 +44,7 @@ class IOManagerMainWindow(QMainWindow):
         shot_load_btn.clicked.connect(self.on_load_clicked)
         self.excel_edit_btn.clicked.connect(self.on_edit_clicked)
         excel_save_btn.clicked.connect(self.on_save_clicked)
-        
+        project_cb.currentTextChanged.connect(self.on_project_selected)
 
         # Layout
         main_layout = QVBoxLayout()
@@ -47,6 +54,8 @@ class IOManagerMainWindow(QMainWindow):
         excel_group = QGroupBox("Excel")
         excel_btn_layout = QHBoxLayout()
 
+        shot_select_container.addWidget(project_label)
+        shot_select_container.addWidget(project_cb)
         shot_select_container.addWidget(file_path_label)
         shot_select_container.addWidget(self.file_path_le)
         shot_select_container.addWidget(shot_select_btn)
@@ -63,6 +72,11 @@ class IOManagerMainWindow(QMainWindow):
         main_layout.addLayout(bottom_layout)
 
         central_widget.setLayout(main_layout)
+
+    def on_project_selected(self, project_name):
+        base_path = os.path.expanduser("~")
+        scan_path = os.path.join(base_path, "show", project_name, "product", "scan")
+        self.file_path_le.setText(scan_path)
 
     def on_load_clicked(self):
         csv_path = export_metadata(self.file_path_le.text())

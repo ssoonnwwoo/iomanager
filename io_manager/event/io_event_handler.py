@@ -3,11 +3,15 @@ import os
 import pandas as pd
 
 def select_directory(line_edit_widget):
-    show_dir = os.path.join(os.path.expanduser("~"), "show")
+    default_dir = os.path.join(os.path.expanduser("~"), "show")
+    scan_dir = line_edit_widget.text()
+    if not os.path.isdir(scan_dir):
+        scan_dir = default_dir
+        
     dir_path = QFileDialog.getExistingDirectory(
         None, # 부모위젯 x
         "Select scan data folder",
-        show_dir, 
+        scan_dir, 
         QFileDialog.ShowDirsOnly
     )
     if dir_path:
