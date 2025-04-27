@@ -1,12 +1,18 @@
 from PySide6.QtWidgets import QMainWindow, QCheckBox, QVBoxLayout
 from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QGroupBox
 from PySide6.QtWidgets import QPushButton, QHBoxLayout, QTableWidget, QTableWidgetItem
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 from event.io_event_handler import select_directory, toggle_edit_mode, save_table_to_csv
 from tools.export_metadata import export_metadata
+from tools.save_as_xlsx import save_as_xlsx
+from tools.get_latest_xlsx_file import get_latest_version_file
+from tools.get_new_version_file import get_new_version_name
+from tools.table_to_metalist import save_table_to_xlsx
+from tools.extract_directory_column import extract_directory_column
+from tools.generate_directory_list import generate_directory_list
 
 import os
 import pandas as pd
@@ -34,8 +40,9 @@ class IOManagerMainWindow(QMainWindow):
         self.table = QTableWidget()
 
         self.excel_label = QLabel("Ready to load")
-        excel_save_btn = QPushButton("Save")
+        excel_save_btn = QPushButton("Version and Save")
         self.excel_edit_btn = QPushButton("Enable Edit")
+        select_excel_btn = QPushButton("Select Excel")
 
         # Event Handle
         shot_select_btn.clicked.connect(
@@ -53,6 +60,8 @@ class IOManagerMainWindow(QMainWindow):
         bottom_layout = QHBoxLayout()
         excel_group = QGroupBox("Excel")
         excel_btn_layout = QHBoxLayout()
+        excel_btn_layout2 = QHBoxLayout()
+        excel_container = QVBoxLayout()
 
         shot_select_container.addWidget(project_label)
         shot_select_container.addWidget(project_cb)
@@ -63,7 +72,10 @@ class IOManagerMainWindow(QMainWindow):
 
         excel_btn_layout.addWidget(excel_save_btn)
         excel_btn_layout.addWidget(self.excel_edit_btn)
-        excel_group.setLayout(excel_btn_layout)
+        excel_btn_layout2.addWidget(select_excel_btn)
+        excel_container.addLayout(excel_btn_layout)
+        excel_container.addLayout(excel_btn_layout2)
+        excel_group.setLayout(excel_container)
         bottom_layout.addWidget(self.excel_label)
         bottom_layout.addWidget(excel_group)
 
@@ -79,10 +91,51 @@ class IOManagerMainWindow(QMainWindow):
         self.file_path_le.setText(scan_path)
 
     def on_load_clicked(self):
-        csv_path = export_metadata(self.file_path_le.text())
-        if csv_path:
-            self.update_table(csv_path)
-            self.excel_label.setText(csv_path)
+        date_path = self.file_path_le.text()
+        # First get latest version of xlsx file
+        latest_xlsx_path = get_latest_version_file(date_path)
+        # If not xlsx file, export metadata and save as {prefix_date}_list_v001.xlsx
+        if not latest_xlsx_path:
+            meta_data = export_metadata(date_path)
+            latest_xlsx_path = save_as_xlsx(date_path, latest_xlsx_path, meta_data)
+            self.update_table(latest_xlsx_path)
+            self.excel_label.setText(latest_xlsx_path)
+            return
+        
+        # If xlsx file exists
+        meta_data_list = export_metadata(date_path)
+
+        # Compare "Directory" column
+        dirs_from_xlsx = sorted(extract_directory_column(latest_xlsx_path))
+        current_dirs = sorted(generate_directory_list(meta_data_list))
+
+        if dirs_from_xlsx == current_dirs:
+            self.update_table(latest_xlsx_path)
+            self.excel_label.setText(latest_xlsx_path)
+        else:
+            self.show_update_dialog(meta_data_list, date_path)
+
+    def show_update_dialog(self, meta_data_list, date_path):
+        reply = QMessageBox.question(
+            self,
+            f"Update Detected in {os.path.basename(date_path)}",
+            "Something changed!\nDo you want to update & open the xlsx file",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            new_name = get_new_version_name(date_path)
+            new_path = os.path.join(date_path, new_name)
+            save_as_xlsx(date_path, new_name, meta_data_list)
+            self.update_table(new_path)
+            self.excel_label.setText(new_path)
+        else:
+            print("[CANCEL] Update canceled")
+
+            latest_xlsx_path = get_latest_version_file(date_path)
+            if latest_xlsx_path:
+                self.update_table(latest_xlsx_path)
+                self.excel_label.setText(latest_xlsx_path)
 
     def on_edit_clicked(self):
         self.edit_mode = toggle_edit_mode(self.table, self.edit_mode)
@@ -92,12 +145,16 @@ class IOManagerMainWindow(QMainWindow):
             self.excel_edit_btn.setText("Enable Edit")
 
     def on_save_clicked(self):
-        csv_path = self.excel_label.text()
-        save_table_to_csv(self.table, csv_path, parent=self)
-    
-    def update_table(self, csv_path):
+        # csv_path = self.excel_label.text()
+        # save_table_to_csv(self.table, csv_path, parent=self)
+        if not os.path.exists(self.file_path_le.text()):
+            return
+        xlsx_path = get_new_version_name(self.file_path_le.text())
+        save_table_to_xlsx(self.table, xlsx_path)
+
+    def update_table(self, xlsx_path):
         self.edit_mode = False
-        df = pd.read_csv(csv_path)
+        df = pd.read_excel(xlsx_path)
         self.table.setRowCount(len(df))
         self.table.setColumnCount(len(df.columns) + 1)
         header_list = ["check"] + df.columns.tolist()
@@ -115,10 +172,11 @@ class IOManagerMainWindow(QMainWindow):
                     value = ""
 
                 # 썸네일 처리
-                if header == "thumbnail" and isinstance(value, str) and os.path.exists(value):
+                if header == "thumbnail":
+                    value = row_data["thumbnail_path"]
                     self.set_thumbnail_cell(row_idx, col_idx + 1, value)
-                    item = QTableWidgetItem(value)
-                    self.table.setItem(row_idx, col_idx + 1, item)
+                    #item = QTableWidgetItem(value)
+                    #self.table.setItem(row_idx, col_idx + 1, item)
                 else:
                     item = QTableWidgetItem(str(value))
                     self.table.setItem(row_idx, col_idx + 1, item)
