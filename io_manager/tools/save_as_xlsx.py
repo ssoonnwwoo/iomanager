@@ -51,6 +51,6 @@ def save_as_xlsx(date_path, file_name, meta_list):
 
     wb.save(xlsx_path)
 
-    QMessageBox.information(None, "Export Complete", f"Metadata exported to:\n{xlsx_path}")
+    # QMessageBox.information(None, "Export Complete", f"Metadata exported to:\n{xlsx_path}")
     print(f"[COMPLETE] Metadata exported to:\n{xlsx_path}")
     return xlsx_path

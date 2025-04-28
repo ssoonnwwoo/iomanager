@@ -23,24 +23,30 @@ def export_metadata(date_path):
                 scan_data_path = seq[0].path
                 thumb_name = seq.head().strip(".") + ".jpg"
                 thumb_path = os.path.join(thumbnails_dir, thumb_name)
-                print(f"thumb path : {thumb_path} ")
-                if exr_to_jpg(scan_data_path, thumb_path):
-                    print(f"[OK] Thumbnail created: {thumb_path}")
+                if not os.path.exists(thumb_path):
+                    if exr_to_jpg(scan_data_path, thumb_path):
+                        print(f"[OK] Thumbnail created: {thumb_path}")
+                    else:
+                        print(f"[FAIL] Thumbnail create failed: {scan_data_path}")
+                        thumb_path = ""
                 else:
-                    print(f"[FAIL] Thumbnail create failed: {scan_data_path}")
-                    thumb_path = ""
+                    print(f"[SKIP] Thumbnail already exist: {thumb_path}")
             # MOV 폴더의 첫 프레임 thumbnial(JPG) 추출
             elif ext == ".mov":
                 mov_path = os.path.join(root, seq.name)
                 scan_data_path = mov_path # for export meta data
                 thumb_name = os.path.splitext(seq.name)[0] + ".jpg"
                 thumb_path = os.path.join(thumbnails_dir, thumb_name)
-                print(f"thumb path : {thumb_path} ")
-                if mov_to_jpg(scan_data_path, thumb_path):
-                    print(f"[OK] Thumbnail created: {thumb_path}")
+                if not os.path.exists(thumb_path):
+                    if mov_to_jpg(scan_data_path, thumb_path):
+                        print(f"[OK] Thumbnail created: {thumb_path}")
+                    else:
+                        print(f"[FAIL] Thumbnail create failed: {scan_data_path}")
+                        thumb_path = ""
+
                 else:
-                    print(f"[FAIL] Thumbnail create failed: {scan_data_path}")
-                    thumb_path = ""
+                    print(f"[SKIP] Thumbnail already exist: {thumb_path}")
+
             else:
                 print(f"[SKIP] {seq} is not EXR OR JPG")
                 continue

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QComboBox, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
-from event.io_event_handler import select_directory, toggle_edit_mode, save_table_to_csv
+from event.io_event_handler import select_directory, toggle_edit_mode, select_xlsx_file
 from tools.export_metadata import export_metadata
 from tools.save_as_xlsx import save_as_xlsx
 from tools.get_latest_xlsx_file import get_latest_version_file
@@ -35,7 +35,7 @@ class IOManagerMainWindow(QMainWindow):
         self.file_path_le = QLineEdit()
         self.file_path_le.setPlaceholderText("Input your shot path")
         shot_select_btn = QPushButton("Select")
-        shot_load_btn = QPushButton("Load")
+        # shot_load_btn = QPushButton("Load")
 
         self.table = QTableWidget()
 
@@ -45,13 +45,15 @@ class IOManagerMainWindow(QMainWindow):
         select_excel_btn = QPushButton("Select Excel")
 
         # Event Handle
-        shot_select_btn.clicked.connect(
-            lambda: select_directory(self.file_path_le)
-        )
-        shot_load_btn.clicked.connect(self.on_load_clicked)
+        # shot_select_btn.clicked.connect(
+        #     lambda: select_directory(self.file_path_le)
+        # )
+        # shot_load_btn.clicked.connect(self.on_load_clicked)
+        shot_select_btn.clicked.connect(self.on_select_clicked)
         self.excel_edit_btn.clicked.connect(self.on_edit_clicked)
         excel_save_btn.clicked.connect(self.on_save_clicked)
         project_cb.currentTextChanged.connect(self.on_project_selected)
+        select_excel_btn.clicked.connect(self.on_select_excel_clicked)
 
         # Layout
         main_layout = QVBoxLayout()
@@ -68,7 +70,7 @@ class IOManagerMainWindow(QMainWindow):
         shot_select_container.addWidget(file_path_label)
         shot_select_container.addWidget(self.file_path_le)
         shot_select_container.addWidget(shot_select_btn)
-        shot_select_container.addWidget(shot_load_btn)
+        #shot_select_container.addWidget(shot_load_btn)
 
         excel_btn_layout.addWidget(excel_save_btn)
         excel_btn_layout.addWidget(self.excel_edit_btn)
@@ -90,7 +92,11 @@ class IOManagerMainWindow(QMainWindow):
         scan_path = os.path.join(base_path, "show", project_name, "product", "scan")
         self.file_path_le.setText(scan_path)
 
-    def on_load_clicked(self):
+    def on_select_clicked(self):
+        selected_path = select_directory(self.file_path_le)
+        if not selected_path:
+            return
+        
         date_path = self.file_path_le.text()
         # First get latest version of xlsx file
         latest_xlsx_path = get_latest_version_file(date_path)
@@ -150,7 +156,19 @@ class IOManagerMainWindow(QMainWindow):
         if not os.path.exists(self.file_path_le.text()):
             return
         xlsx_path = get_new_version_name(self.file_path_le.text())
-        save_table_to_xlsx(self.table, xlsx_path)
+
+        reply = QMessageBox.question(
+            self,
+            "Confirm Save",
+            f"The file will be saved as\n{os.path.basename(xlsx_path)}\nDo you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            save_table_to_xlsx(self.table, xlsx_path)
+            print(f"[COMPLETE] Version up file saved : {xlsx_path}")
+        else:
+            pass
 
     def update_table(self, xlsx_path):
         self.edit_mode = False
@@ -190,3 +208,10 @@ class IOManagerMainWindow(QMainWindow):
             label.setAlignment(Qt.AlignLeft)
             self.table.setCellWidget(row, col, label)
             self.table.setRowHeight(row, 200)
+
+    def on_select_excel_clicked(self):
+        xlsx_file_path = select_xlsx_file(self.file_path_le)
+        if xlsx_file_path:
+            self.update_table(xlsx_file_path)
+            self.excel_label.setText(xlsx_file_path)
+        
