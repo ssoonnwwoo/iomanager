@@ -1,5 +1,6 @@
 import subprocess
 import os
+import pyseq
 
 def exr_to_jpg(input_exr_path, output_jpg_path):
     """
@@ -62,3 +63,56 @@ def mov_to_jpg(input_mov_path, output_jpg_path, all_frames=False):
     except Exception as e:
         print(f"[EXCEPTION] Error occurred while extracting JPG from MOV: {e}")
         return False
+
+def mov_to_exrs(mov_path, output_dir):
+    print(f"mov: {mov_path}")
+    print(f"exrs: {output_dir}")
+    parts = output_dir.strip("/").split("/")
+    seq_shot = parts[-4]  # "S038_0020"
+    typ = parts[-2]       # "org"
+    ver = parts[-1]       # "v001"
+    # S040_0020_org_v001.######.exr
+    
+    output_pattern = os.path.join(
+        output_dir, f"{seq_shot}_{typ}_{ver}.%06d.exr"
+    )
+
+    try:
+        cmd = ["ffmpeg", "-y", "-i", mov_path, "-c:v", "exr", output_pattern]
+        subprocess.run(cmd, check=True)
+        print(f"[COMPLETE] MOV to EXR: {output_pattern}")
+        return True
+    except Exception as e:
+        print(f"[EXCEPTION] Error converting MOV to EXR: {e}")
+        return False
+
+
+def exrs_to_jpgs(src_dir, dest_dir):
+    print(f"exrs: {src_dir}")
+    print(f"jpgs: {dest_dir}")
+    # if not os.path.isdir(src_dir):
+    #     print(f"[ERROR] Source directory does not exist: {src_dir}")
+    #     return False
+    
+    # converted_count = 0
+
+    # for root, dirs, seqs in pyseq.walk(src_dir):
+    #     for seq in seqs:
+    #         ext = seq.ext.lower()
+    #         if  ext not in [".exr", ".mov"]:
+    #             continue
+
+    #         for frame in seq:
+    #             src_path = frame.path
+
+    #             if ext == ".exr":
+    #                 base_name = os.path.splitext(os.path.basename(src_path))[0]
+    #                 jpg_name = base_name + ".jpg"
+    #                 jpg_path = os.path.join(dest_dir, jpg_name)
+
+    #                 success = exr_to_jpg(src_path, jpg_path)
+    #                 if success:
+    #                     converted_count += 1
+
+    #             elif ext ==".mov":
+    #                 mov_file_name = os.path.splitext

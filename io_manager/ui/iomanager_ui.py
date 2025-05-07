@@ -13,6 +13,9 @@ from tools.get_new_version_file import get_new_version_name
 from tools.table_to_metalist import save_table_to_xlsx
 from tools.extract_directory_column import extract_directory_column
 from tools.generate_directory_list import generate_directory_list
+from tools.get_publish_info import get_publish_info
+from tools.rename import rename_sequence
+from tools.convert import exrs_to_jpgs, mov_to_exrs
 
 import os
 import pandas as pd
@@ -28,9 +31,9 @@ class IOManagerMainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         project_label = QLabel("Select project: ")
-        project_cb = QComboBox()
-        project_cb.setCurrentIndex(0)
-        project_cb.addItems(project_list)
+        self.project_cb = QComboBox()
+        self.project_cb.setCurrentIndex(0)
+        self.project_cb.addItems(project_list)
         file_path_label = QLabel("File path:")
         self.file_path_le = QLineEdit()
         self.file_path_le.setPlaceholderText("Input your shot path")
@@ -44,6 +47,8 @@ class IOManagerMainWindow(QMainWindow):
         self.excel_edit_btn = QPushButton("Enable Edit")
         select_excel_btn = QPushButton("Select Excel")
 
+        publish_btn = QPushButton("Publish")
+
         # Event Handle
         # shot_select_btn.clicked.connect(
         #     lambda: select_directory(self.file_path_le)
@@ -52,8 +57,9 @@ class IOManagerMainWindow(QMainWindow):
         shot_select_btn.clicked.connect(self.on_select_clicked)
         self.excel_edit_btn.clicked.connect(self.on_edit_clicked)
         excel_save_btn.clicked.connect(self.on_save_clicked)
-        project_cb.currentTextChanged.connect(self.on_project_selected)
+        self.project_cb.currentTextChanged.connect(self.on_project_selected)
         select_excel_btn.clicked.connect(self.on_select_excel_clicked)
+        publish_btn.clicked.connect(self.on_publish_clicked)
 
         # Layout
         main_layout = QVBoxLayout()
@@ -66,7 +72,7 @@ class IOManagerMainWindow(QMainWindow):
         excel_container = QVBoxLayout()
 
         shot_select_container.addWidget(project_label)
-        shot_select_container.addWidget(project_cb)
+        shot_select_container.addWidget(self.project_cb)
         shot_select_container.addWidget(file_path_label)
         shot_select_container.addWidget(self.file_path_le)
         shot_select_container.addWidget(shot_select_btn)
@@ -80,6 +86,7 @@ class IOManagerMainWindow(QMainWindow):
         excel_group.setLayout(excel_container)
         bottom_layout.addWidget(self.excel_label)
         bottom_layout.addWidget(excel_group)
+        bottom_layout.addWidget(publish_btn)
 
         main_layout.addLayout(shot_select_container)
         main_layout.addWidget(self.table)
@@ -166,6 +173,8 @@ class IOManagerMainWindow(QMainWindow):
 
         if reply == QMessageBox.StandardButton.Yes:
             save_table_to_xlsx(self.table, xlsx_path)
+            self.excel_label.setText(xlsx_path)
+            self.update_table(xlsx_path)
             print(f"[COMPLETE] Version up file saved : {xlsx_path}")
         else:
             pass
@@ -214,4 +223,52 @@ class IOManagerMainWindow(QMainWindow):
         if xlsx_file_path:
             self.update_table(xlsx_file_path)
             self.excel_label.setText(xlsx_file_path)
-        
+
+    def on_publish_clicked(self):
+        xlsx_file_path = self.excel_label.text()
+        shot_info_list = get_publish_info(xlsx_file_path)
+        base_path = "/home/rapa/show"
+        project_name = self.project_cb.currentText()
+        for shot_info in shot_info_list:
+            seq = shot_info["sequence"]
+            shot = shot_info["shot"]
+            typ = shot_info["type"]
+            ver = shot_info["version"]
+            ver_jpg = f"{ver}_jpg"
+            directory = shot_info["directory"]
+
+            org_path = os.path.join(
+            base_path, project_name,"seq",
+            seq,shot, "plate", typ, ver
+            )
+
+            jpg_path = os.path.join(
+            base_path, project_name,"seq",
+            seq, shot, "plate", typ, ver_jpg
+            )
+
+            os.makedirs(org_path, exist_ok=True)
+            os.makedirs(jpg_path, exist_ok=True)
+
+            files = []
+            for file in os.listdir(directory):
+                # full_path = os.path.join(directory, file)
+                files.append(file)
+
+            # 확장자 조사
+            exts = set()
+            for file in files:
+                _, ext = os.path.splitext(file)
+                exts.add(ext.lower())
+            
+            # exr -> rename + exr sequence to jpg sequence
+            if ".exr" in exts:
+                rename_sequence(directory, org_path)
+                exrs_to_jpgs(org_path, jpg_path)
+            
+            # mov -> mov to exr sequence + exr sequence to jpg sequence
+            elif ".mov" in exts:
+                mov_path = os.path.join(directory,files[0])
+                success = mov_to_exrs(mov_path, org_path)
+                if success:
+                    exrs_to_jpgs(org_path, jpg_path)
