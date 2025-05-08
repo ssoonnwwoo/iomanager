@@ -20,7 +20,7 @@ def rename_sequence(seq_path, new_path):
                     new_name = f"{seq_shot}_{typ}_{ver}.{frame_num}{ext}"
                 elif ext == ".mov":
                     new_name = f"{seq_shot}_{typ}_{ver}{ext}"
-                    
+
                 old_path = frame.path
                 new_file_path = os.path.join(new_path, new_name)
                 shutil.copy2(old_path, new_file_path)

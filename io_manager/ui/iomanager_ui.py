@@ -15,7 +15,7 @@ from tools.extract_directory_column import extract_directory_column
 from tools.generate_directory_list import generate_directory_list
 from tools.get_publish_info import get_publish_info
 from tools.rename import rename_sequence
-from tools.convert import exrs_to_jpgs, mov_to_exrs
+from tools.convert import exrs_to_jpgs, mov_to_exrs, exrs_to_video
 
 import os
 import pandas as pd
@@ -247,8 +247,14 @@ class IOManagerMainWindow(QMainWindow):
             seq, shot, "plate", typ, ver_jpg
             )
 
+            sg_path = os.path.join(
+                base_path, project_name, "seq",
+                seq, shot, "plate", "shotgrid_upload_datas", ver
+            )
+
             os.makedirs(org_path, exist_ok=True)
             os.makedirs(jpg_path, exist_ok=True)
+            os.makedirs(sg_path, exist_ok=True)
 
             files = []
             for file in os.listdir(directory):
@@ -263,12 +269,16 @@ class IOManagerMainWindow(QMainWindow):
             
             # exr -> rename + exr sequence to jpg sequence
             if ".exr" in exts:
-                rename_sequence(directory, org_path)
-                exrs_to_jpgs(org_path, jpg_path)
+                # rename_sequence(directory, org_path)
+                # exrs_to_jpgs(org_path, jpg_path)
+                exrs_to_video(org_path, sg_path, vformat='mp4')
+                exrs_to_video(org_path, sg_path, vformat='webm')
             
             # mov -> mov to exr sequence + exr sequence to jpg sequence
             elif ".mov" in exts:
                 mov_path = os.path.join(directory,files[0])
                 success = mov_to_exrs(mov_path, org_path)
                 if success:
-                    exrs_to_jpgs(org_path, jpg_path)
+                    # exrs_to_jpgs(org_path, jpg_path)
+                    exrs_to_video(org_path, sg_path, vformat='mp4')
+                    exrs_to_video(org_path, sg_path, vformat='webm')

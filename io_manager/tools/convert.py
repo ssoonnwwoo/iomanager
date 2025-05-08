@@ -66,8 +66,6 @@ def mov_to_jpg(input_mov_path, output_jpg_path, all_frames=False):
         return False
 
 def mov_to_exrs(mov_path, output_dir):
-    print(f"mov: {mov_path}")
-    print(f"exrs: {output_dir}")
     parts = output_dir.strip("/").split("/")
     seq_shot = parts[-4]  # "S038_0020"
     typ = parts[-2]       # "org"
@@ -75,7 +73,7 @@ def mov_to_exrs(mov_path, output_dir):
     # S040_0020_org_v001.######.exr
     
     output_pattern = os.path.join(
-        output_dir, f"{seq_shot}_{typ}_{ver}.%06d.exr"
+        output_dir, f"{seq_shot}_{typ}_{ver}.%7d.exr"
     )
 
     try:
@@ -90,8 +88,6 @@ def mov_to_exrs(mov_path, output_dir):
 
 
 def exrs_to_jpgs(src_dir, dest_dir):
-    print(f"exrs: {src_dir}")
-    print(f"jpgs: {dest_dir}")
     if not os.path.isdir(src_dir):
         print(f"[ERROR] Source directory does not exist: {src_dir}")
         return False
@@ -104,7 +100,7 @@ def exrs_to_jpgs(src_dir, dest_dir):
             if  ext != ".exr":
                 continue
 
-            print(f"\n[INFO] Processing sequence: {seq.head}{seq.tail} ({len(seq)} frames)")
+            print(f"\n[INFO] Processing sequence: {seq.head()}{seq.tail()} ({len(seq)} frames)")
 
             for frame in seq:
                 src_path = frame.path
@@ -116,5 +112,89 @@ def exrs_to_jpgs(src_dir, dest_dir):
                 if success:
                     converted_count += 1
             print(f"\n[COMPLETE] {converted_count} EXR frames successfully converted to JPG.")
-            
     return True
+
+def exrs_to_video(src_dir, dest_dir, vformat='mp4'):
+    parts = dest_dir.strip("/").split("/")
+    seq_shot = parts[-4]  # "S038_0020"
+    ver = parts[-1]       # "v001"
+
+    if not os.path.isdir(src_dir):
+        print(f"[ERROR] Source directory does not exist: {src_dir}")
+        return False
+
+    for root, dirs, seqs in pyseq.walk(src_dir):
+        for seq in seqs:
+            _, ext = os.path.splitext(seq.name)
+            if ext != ".exr":
+                continue
+            
+            start_frame = seq.start()
+            padding_str = seq.format('%p')
+            input_pattern = os.path.join(src_dir, f"{seq.head()}{padding_str}{seq.tail()}")
+            output_path = os.path.join(dest_dir, f"{seq_shot}_plate_{ver}.{vformat}")
+
+            # print(f"[INFO] Converting sequence: {input_pattern}")
+            # print(f"[INFO] Output video: {output_path}")
+
+            if vformat == "mp4":
+                codec = "libx264"
+                pix_fmt = "yuv420p"
+            elif vformat == "webm":
+                codec = "libvpx"
+                pix_fmt = "yuv420p"
+            else:
+                print(f"[ERROR] Unsupported format: {vformat}")
+                return False
+
+            # ffmpeg -framerate 23.976 -i input.%07d.exr -c:v libx264 -crf 25 -pix_fmt yuv420p output.mp4
+            cmd = [
+                "ffmpeg",
+                "-loglevel", "error",           # 오류만 출력
+                "-y",
+                "-start_number", str(start_frame),
+                "-framerate", "23.976",
+                "-i", input_pattern,
+                "-c:v", codec,
+                "-crf", "25",
+                "-pix_fmt", pix_fmt,
+                output_path,
+            ]
+
+            try:
+                subprocess.run(cmd, check=True)
+                print(f"[COMPLETE] {vformat.upper()} successfully created at {output_path}")
+            except subprocess.CalledProcessError as e:
+                print(f"[ERROR] FFmpeg failed: {e}")
+                return False
+
+    return True
+
+def exrs_to_montage(src_path, output_path):
+    frame_increment = 10
+    frame_width = 240
+    offset = 0
+
+    try:
+        cmd = [
+            "ffmpeg",
+            "-loglevel", "error",
+            "-threads", "4",
+            "-start_number", str(offset),
+            "-i", src_path,
+            "-vf", f"select='not(mod((n-{offset})\\,{frame_increment}))',setpts='N/({fps}*TB)',scale={frame_width}:-1",
+            "-sws_flags", "lanczos",
+            "-qscale:v", "2",
+            "-pix_fmt", "yuvj420p",
+            "-frames:v", "1",
+            "-f", "image2",
+            output_path
+        ]
+
+        subprocess.run(cmd, check=True)
+        print(f"[COMPLETE] Montage created at {output_path}")
+        return True
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to generate montage: {e}")
+        return False
