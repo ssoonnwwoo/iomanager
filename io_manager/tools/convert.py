@@ -1,6 +1,7 @@
 import subprocess
 import os
 import pyseq
+from datetime import datetime
 
 def exr_to_jpg(input_exr_path, output_jpg_path):
     """
@@ -17,7 +18,7 @@ def exr_to_jpg(input_exr_path, output_jpg_path):
         return False
 
     try:
-        cmd = ["ffmpeg", "-y", "-i", input_exr_path, "-q:v", "2", output_jpg_path]
+        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-i", input_exr_path, "-q:v", "2", output_jpg_path]
         subprocess.run(cmd, check=True)
         print(f"[COMPLETE] Input : {input_exr_path}")
         print(f"[COMPLETE] Output : {output_jpg_path}")
@@ -45,7 +46,7 @@ def mov_to_jpg(input_mov_path, output_jpg_path, all_frames=False):
         return False
 
     try:
-        cmd = ["ffmpeg", "-y", "-i", input_mov_path]
+        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-i", input_mov_path]
         
         if all_frames:
             # 전체 프레임 추출
@@ -78,7 +79,8 @@ def mov_to_exrs(mov_path, output_dir):
     )
 
     try:
-        cmd = ["ffmpeg", "-y", "-i", mov_path, "-c:v", "exr", output_pattern]
+        ffmpeg_path = "/opt/ffmpeg-openexr/bin/ffmpeg"
+        cmd = [ffmpeg_path, "-loglevel", "error", "-y", "-i", mov_path, "-c:v", "exr", output_pattern]
         subprocess.run(cmd, check=True)
         print(f"[COMPLETE] MOV to EXR: {output_pattern}")
         return True
@@ -90,29 +92,29 @@ def mov_to_exrs(mov_path, output_dir):
 def exrs_to_jpgs(src_dir, dest_dir):
     print(f"exrs: {src_dir}")
     print(f"jpgs: {dest_dir}")
-    # if not os.path.isdir(src_dir):
-    #     print(f"[ERROR] Source directory does not exist: {src_dir}")
-    #     return False
+    if not os.path.isdir(src_dir):
+        print(f"[ERROR] Source directory does not exist: {src_dir}")
+        return False
     
-    # converted_count = 0
 
-    # for root, dirs, seqs in pyseq.walk(src_dir):
-    #     for seq in seqs:
-    #         ext = seq.ext.lower()
-    #         if  ext not in [".exr", ".mov"]:
-    #             continue
+    for root, dirs, seqs in pyseq.walk(src_dir):
+        for seq in seqs:
+            _, ext = os.path.splitext(seq.name)
+            converted_count = 0
+            if  ext != ".exr":
+                continue
 
-    #         for frame in seq:
-    #             src_path = frame.path
+            print(f"\n[INFO] Processing sequence: {seq.head}{seq.tail} ({len(seq)} frames)")
 
-    #             if ext == ".exr":
-    #                 base_name = os.path.splitext(os.path.basename(src_path))[0]
-    #                 jpg_name = base_name + ".jpg"
-    #                 jpg_path = os.path.join(dest_dir, jpg_name)
+            for frame in seq:
+                src_path = frame.path
+                base_name = os.path.splitext(os.path.basename(src_path))[0]
+                jpg_name = base_name + ".jpg"
+                jpg_path = os.path.join(dest_dir, jpg_name)
 
-    #                 success = exr_to_jpg(src_path, jpg_path)
-    #                 if success:
-    #                     converted_count += 1
-
-    #             elif ext ==".mov":
-    #                 mov_file_name = os.path.splitext
+                success = exr_to_jpg(src_path, jpg_path)
+                if success:
+                    converted_count += 1
+            print(f"\n[COMPLETE] {converted_count} EXR frames successfully converted to JPG.")
+            
+    return True
