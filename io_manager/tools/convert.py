@@ -1,7 +1,7 @@
 import subprocess
 import os
 import pyseq
-from datetime import datetime
+import tempfile
 
 def exr_to_jpg(input_exr_path, output_jpg_path):
     """
@@ -170,31 +170,91 @@ def exrs_to_video(src_dir, dest_dir, vformat='mp4'):
 
     return True
 
-def exrs_to_montage(src_path, output_path):
-    frame_increment = 10
+def exrs_to_montage(src_path, dest_dir):
+    parts = dest_dir.strip("/").split("/")
+    seq_shot = parts[-4]  # "S038_0020"
+    ver = parts[-1]       # "v001"
+    frame_increment = 5
     frame_width = 240
-    offset = 0
+    fps = 23.976
 
-    try:
-        cmd = [
-            "ffmpeg",
-            "-loglevel", "error",
-            "-threads", "4",
-            "-start_number", str(offset),
-            "-i", src_path,
-            "-vf", f"select='not(mod((n-{offset})\\,{frame_increment}))',setpts='N/({fps}*TB)',scale={frame_width}:-1",
-            "-sws_flags", "lanczos",
-            "-qscale:v", "2",
-            "-pix_fmt", "yuvj420p",
-            "-frames:v", "1",
-            "-f", "image2",
-            output_path
-        ]
+    for _, _, seqs in pyseq.walk(src_path):
+        for seq in seqs:
+            _, ext = os.path.splitext(seq.name)
+            if ext != ".exr":
+                continue
 
-        subprocess.run(cmd, check=True)
-        print(f"[COMPLETE] Montage created at {output_path}")
-        return True
-    
-    except Exception as e:
-        print(f"[ERROR] Failed to generate montage: {e}")
-        return False
+            head = seq.head()
+            tail = seq.tail()
+            start = seq.start()
+            padding_str = seq.format('%p')
+            input_pattern = os.path.join(src_path, f"{head}{padding_str}{tail}")
+
+            with tempfile.TemporaryDirectory(prefix="filmstrip_") as tmp_dir:
+                tmp_pattern = os.path.join(tmp_dir, "thumb_%02d.jpeg")
+
+                try:
+                    extract_cmd = [
+                        "ffmpeg",
+                        "-loglevel", "error",
+                        "-start_number", str(start),
+                        "-i", input_pattern,
+                        "-vf", f"select='not(mod((n-{start})\\,{frame_increment}))',setpts='N/({fps}*TB)',scale={frame_width}:-1",
+                        "-sws_flags", "lanczos",
+                        "-qscale:v", "2",
+                        "-pix_fmt", "yuvj420p",
+                        "-f", "image2",
+                        tmp_pattern
+                    ]
+                    subprocess.run(extract_cmd, check=True)
+
+                    montage_name = f"{seq_shot}_montage_{ver}.jpg"
+                    concat_cmd = [
+                        "convert",
+                        "+append",
+                        os.path.join(tmp_dir, "thumb_*.jpeg"),
+                        os.path.join(dest_dir, montage_name)
+                    ]
+                    subprocess.run(" ".join(concat_cmd), check=True, shell=True)
+
+                    print(f"[COMPLETE] Montage created at {dest_dir}")
+                    return True
+
+                except subprocess.CalledProcessError as e:
+                    print(f"[ERROR] Failed to generate montage: {e}")
+                    return False
+
+    print("[ERROR] No EXR sequences found.")
+    return False
+
+def exrs_to_thumbnail(src_path, dest_dir):
+    parts = dest_dir.strip("/").split("/")
+    seq_shot = parts[-4]  # "S038_0020"
+    ver = parts[-1]       # "v001"
+
+    thumbnail_name = f"{seq_shot}_thumbnail_{ver}.jpg"
+    output_path = os.path.join(dest_dir, thumbnail_name)
+
+    for _, _, seqs in pyseq.walk(src_path):
+        for seq in seqs:
+            _, ext = os.path.splitext(seq.name)
+            if ext != ".exr":
+                continue
+
+            head = seq.head()
+            tail = seq.tail()
+            start = seq.start()
+            padding_str = seq.format('%p')
+            # ex : "%07d" % 1 >>> "0000001"
+            first_frame = padding_str % start
+            input_path = os.path.join(src_path, f"{head}{first_frame}{tail}")
+            if exr_to_jpg(input_path, output_path):
+                print(f"[COMPLETE] Thumbnail created at {output_path}")
+                return True
+            else:
+                print(f"[ERROR] Failed to create thumbnail for {input_path}")
+                return False
+            
+    print("[ERROR] No EXR sequences found.")
+    return False
+

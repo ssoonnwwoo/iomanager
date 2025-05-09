@@ -15,7 +15,7 @@ from tools.extract_directory_column import extract_directory_column
 from tools.generate_directory_list import generate_directory_list
 from tools.get_publish_info import get_publish_info
 from tools.rename import rename_sequence
-from tools.convert import exrs_to_jpgs, mov_to_exrs, exrs_to_video
+from tools.convert import exrs_to_jpgs, mov_to_exrs, exrs_to_video, exrs_to_montage, exrs_to_thumbnail
 
 import os
 import pandas as pd
@@ -189,6 +189,7 @@ class IOManagerMainWindow(QMainWindow):
 
         for row_idx, row_data in df.iterrows():
             checkbox = QCheckBox()
+            checkbox.clicked.connect(lambda _, row = row_idx: self.on_checkbox_clicked(row, xlsx_path))
             self.table.setCellWidget(row_idx, 0, checkbox)
 
             for col_idx, header in enumerate(df.columns):
@@ -208,6 +209,29 @@ class IOManagerMainWindow(QMainWindow):
                     item = QTableWidgetItem(str(value))
                     self.table.setItem(row_idx, col_idx + 1, item)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+    def on_checkbox_clicked(self, row, xlsx_path):
+        # print(f"[TEST] Checkbox clicked on row {row}")
+        df = pd.read_excel(xlsx_path)
+
+        seq = df.at[row, "seq_name"]
+        shot = df.at[row, "shot_name"]
+
+        if pd.isna(seq) or pd.isna(shot) or str(seq).strip() == "" or str(shot).strip() == "":
+            QMessageBox.warning(
+            self,
+            "Missing Data",
+            f"Row[{row + 1}] missing 'seq_name' or 'shot_name'.\nThis row cannot be selected.",
+            QMessageBox.Ok
+            )
+
+            checkbox = self.table.cellWidget(row, 0)
+            if isinstance(checkbox, QCheckBox):
+                checkbox.setChecked(False)
+            return
+
+        else:
+            print(f"[OK] seq: {seq}, shot: {shot} at row {row + 1}")
 
     def set_thumbnail_cell(self, row, col, img_path):
         label = QLabel()
@@ -269,16 +293,20 @@ class IOManagerMainWindow(QMainWindow):
             
             # exr -> rename + exr sequence to jpg sequence
             if ".exr" in exts:
-                # rename_sequence(directory, org_path)
-                # exrs_to_jpgs(org_path, jpg_path)
+                rename_sequence(directory, org_path)
+                exrs_to_jpgs(org_path, jpg_path)
                 exrs_to_video(org_path, sg_path, vformat='mp4')
                 exrs_to_video(org_path, sg_path, vformat='webm')
+                exrs_to_montage(org_path, sg_path)
+                exrs_to_thumbnail(org_path, sg_path)
             
             # mov -> mov to exr sequence + exr sequence to jpg sequence
             elif ".mov" in exts:
                 mov_path = os.path.join(directory,files[0])
                 success = mov_to_exrs(mov_path, org_path)
                 if success:
-                    # exrs_to_jpgs(org_path, jpg_path)
+                    exrs_to_jpgs(org_path, jpg_path)
                     exrs_to_video(org_path, sg_path, vformat='mp4')
                     exrs_to_video(org_path, sg_path, vformat='webm')
+                    exrs_to_montage(org_path, sg_path)
+                    exrs_to_thumbnail(org_path, sg_path)
