@@ -8,7 +8,7 @@ def get_latest_plate_version(dir_list):
         match = re.match(r"v(\d{3})", name)
         if match:
             version_nums.append(int(match.group(1)))
-
+    print(dir_list, version_nums) 
     if version_nums:
         latest_num = max(version_nums) + 1
         return f"v{latest_num:03d}"
@@ -25,7 +25,7 @@ def get_publish_info(xlsx_file_path):
         project_name = parts[show_idx + 1]
 
         # 첫 번째 행에서 헤더 인덱스 찾기
-        headers = {cell.value: idx for idx, cell in enumerate(ws[1])}
+        # headers ex : {'seq_name': 0, 'shot_name': 1, 'type': 2, 'Directory': 3}
         headers = {}
         for col_idx, cell in enumerate(ws[1]):
             headers[cell.value] = col_idx
@@ -42,13 +42,16 @@ def get_publish_info(xlsx_file_path):
                 continue  # 불완전한 행은 일단 건너뜀
             
             # Get latest version number
-            base_dir = "/home/rapa/show"
+            home_dir = os.path.expanduser("~")
+            base_dir = os.path.join(home_dir, "show")
+            #base_dir = "/home/rapa/show"
             shot_dir = os.path.join(base_dir, project_name, "seq", seq, shot, "plate/org")
             try:
                 versions = os.listdir(shot_dir)
             except FileNotFoundError:
                 versions = []
             latest_version = get_latest_plate_version(versions)
+            print(latest_version)
             
             data.append({
                 "sequence": str(seq),

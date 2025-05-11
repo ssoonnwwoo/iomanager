@@ -251,7 +251,8 @@ class IOManagerMainWindow(QMainWindow):
     def on_publish_clicked(self):
         xlsx_file_path = self.excel_label.text()
         shot_info_list = get_publish_info(xlsx_file_path)
-        base_path = "/home/rapa/show"
+        home_dir = os.path.expanduser("~")
+        base_path = os.path.join(home_dir, "show")
         project_name = self.project_cb.currentText()
         for shot_info in shot_info_list:
             seq = shot_info["sequence"]
